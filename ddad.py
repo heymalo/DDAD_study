@@ -8,6 +8,7 @@ from anomaly_map import *
 from metrics import *
 from feature_extractor import *
 from reconstruction import *
+import pandas as pd #TODO:是否导入了对应的pandas库呢？记得与pytorch版本看齐
 os.environ['CUDA_VISIBLE_DEVICES'] = "0,1,2"
 
 class DDAD:
@@ -38,11 +39,11 @@ class DDAD:
         
         labels_list = []
         predictions= []
-        anomaly_map_list = []
-        gt_list = []
-        reconstructed_list = []
-        forward_list = []
-
+        image_paths = [] # 存储图片路径
+        # anomaly_map_list = []
+        # gt_list = []
+        # reconstructed_list = []
+        # forward_list = []
 
 
         with torch.no_grad():
@@ -51,34 +52,46 @@ class DDAD:
                 x0 = self.reconstruction(input, input, self.config.model.w)[-1]
                 anomaly_map = heat_map(x0, input, feature_extractor, self.config)
 
-                anomaly_map = self.transform(anomaly_map)
-                gt = self.transform(gt)
+                # 记录图片路径
+                batch_paths = [p for p in self.test_dataset.image_files]
+                image_paths.extend(batch_paths)
+                # anomaly_map = self.transform(anomaly_map)
+                # gt = self.transform(gt)
 
-                forward_list.append(input)
-                anomaly_map_list.append(anomaly_map)
+                # forward_list.append(input)
+                # anomaly_map_list.append(anomaly_map)
 
 
-                gt_list.append(gt)
-                reconstructed_list.append(x0)
+                # gt_list.append(gt)
+                # reconstructed_list.append(x0)
                 for pred, label in zip(anomaly_map, labels):
                     labels_list.append(0 if label == 'good' else 1)
                     predictions.append(torch.max(pred).item())
 
         
-        metric = Metric(labels_list, predictions, anomaly_map_list, gt_list, self.config)
-        metric.optimal_threshold()
-        if self.config.metrics.auroc:
-            print('AUROC: ({:.1f},{:.1f})'.format(metric.image_auroc() * 100, metric.pixel_auroc() * 100))
-        if self.config.metrics.pro:
-            print('PRO: {:.1f}'.format(metric.pixel_pro() * 100))
-        if self.config.metrics.misclassifications:
-            metric.miscalssified()
-        reconstructed_list = torch.cat(reconstructed_list, dim=0)
-        forward_list = torch.cat(forward_list, dim=0)
-        anomaly_map_list = torch.cat(anomaly_map_list, dim=0)
-        pred_mask = (anomaly_map_list > metric.threshold).float()
-        gt_list = torch.cat(gt_list, dim=0)
-        if not os.path.exists('results'):
-                os.mkdir('results')
-        if self.config.metrics.visualisation:
-            visualize(forward_list, reconstructed_list, gt_list, pred_mask, anomaly_map_list, self.config.data.category)
+        metric = Metric(labels_list, predictions, None, None, self.config)
+        binary_predictions = metric.get_predictions()
+        
+        # 保存结果到CSV
+        results_df = pd.DataFrame({
+            'image_path': image_paths,
+            'prediction': binary_predictions 
+        })
+        results_df.to_csv('test_results.csv', index=False)
+
+        # metric.optimal_threshold()
+        # if self.config.metrics.auroc:
+        #     print('AUROC: ({:.1f},{:.1f})'.format(metric.image_auroc() * 100, metric.pixel_auroc() * 100))
+        # if self.config.metrics.pro:
+        #     print('PRO: {:.1f}'.format(metric.pixel_pro() * 100))
+        # if self.config.metrics.misclassifications:
+        #     metric.miscalssified()
+        # reconstructed_list = torch.cat(reconstructed_list, dim=0)
+        # forward_list = torch.cat(forward_list, dim=0)
+        # anomaly_map_list = torch.cat(anomaly_map_list, dim=0)
+        # pred_mask = (anomaly_map_list > metric.threshold).float()
+        # gt_list = torch.cat(gt_list, dim=0)
+        # if not os.path.exists('results'):
+        #         os.mkdir('results')
+        # if self.config.metrics.visualisation:
+        #     visualize(forward_list, reconstructed_list, gt_list, pred_mask, anomaly_map_list, self.config.data.category)
