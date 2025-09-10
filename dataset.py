@@ -39,11 +39,13 @@ class Dataset_maker(torch.utils.data.Dataset):
                 self.image_files = glob(
                     os.path.join(root, "train", "good", "*.png")
                 )
-        else:
+        else:   # 测试集直接读取全部图片
             if category:
-                self.image_files = glob(os.path.join(root, category, "test", "*", "*.png"))
+                # self.image_files = glob(os.path.join(root, category, "test", "*", "*.png"))
+                self.image_files = glob(os.path.join(root, category, "test", "*.png"))
             else:
-                self.image_files = glob(os.path.join(root, "test", "*", "*.png"))
+                # self.image_files = glob(os.path.join(root, "test", "*", "*.png"))
+                self.image_files = glob(os.path.join(root, "test", "*.png"))
         self.is_train = is_train
 
     def __getitem__(self, index):
@@ -56,31 +58,32 @@ class Dataset_maker(torch.utils.data.Dataset):
             label = 'good'
             return image, label
         else:
-            if self.config.data.mask:
-                if os.path.dirname(image_file).endswith("good"):
-                    target = torch.zeros([1, image.shape[-2], image.shape[-1]])
-                    label = 'good'
-                else :
-                    if self.config.data.name == 'MVTec':
-                        target = Image.open(
-                            image_file.replace("/test/", "/ground_truth/").replace(
-                                ".png", "_mask.png"
-                            )
-                        )
-                    else:
-                        target = Image.open(
-                            image_file.replace("/test/", "/ground_truth/"))
-                    target = self.mask_transform(target)
-                    label = 'defective'
-            else:
-                if os.path.dirname(image_file).endswith("good"):
-                    target = torch.zeros([1, image.shape[-2], image.shape[-1]])
-                    label = 'good'
-                else :
-                    target = torch.zeros([1, image.shape[-2], image.shape[-1]])
-                    label = 'defective'
+            # if self.config.data.mask:
+            #     if os.path.dirname(image_file).endswith("good"):
+            #         target = torch.zeros([1, image.shape[-2], image.shape[-1]])
+            #         label = 'good'
+            #     else :
+            #         if self.config.data.name == 'MVTec':
+            #             target = Image.open(
+            #                 image_file.replace("/test/", "/ground_truth/").replace(
+            #                     ".png", "_mask.png"
+            #                 )
+            #             )
+            #         else:
+            #             target = Image.open(
+            #                 image_file.replace("/test/", "/ground_truth/"))
+            #         target = self.mask_transform(target)
+            #         label = 'defective'
+            # else:
+            #     if os.path.dirname(image_file).endswith("good"):
+            #         target = torch.zeros([1, image.shape[-2], image.shape[-1]])
+            #         label = 'good'
+            #     else :
+            #         target = torch.zeros([1, image.shape[-2], image.shape[-1]])
+            #         label = 'defective'
                 
-            return image, target, label
+            # return image, target, label
+            return image, image_file
 
     def __len__(self):
         return len(self.image_files)

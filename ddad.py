@@ -23,15 +23,16 @@ class DDAD:
             self.test_dataset,
             batch_size= config.data.test_batch_size,
             shuffle=False,
-            num_workers= config.model.num_workers,
+            # num_workers= config.model.num_workers,
+            num_workers= 0,
             drop_last=False,
         )
         self.unet = unet
         self.config = config
         self.reconstruction = Reconstruction(self.unet, self.config)
-        self.transform = transforms.Compose([
-                            transforms.CenterCrop((224)), 
-                        ])
+        # self.transform = transforms.Compose([
+        #                     transforms.CenterCrop((224)), 
+        #                 ])
 
     def __call__(self) -> Any:
         feature_extractor = domain_adaptation(self.unet, self.config, fine_tune=False)
@@ -47,14 +48,19 @@ class DDAD:
 
 
         with torch.no_grad():
-            for input, gt, labels in self.testloader:
+            for input, image_file in self.testloader:
                 input = input.to(self.config.model.device)
                 x0 = self.reconstruction(input, input, self.config.model.w)[-1]
                 anomaly_map = heat_map(x0, input, feature_extractor, self.config)
+                for pred, path in zip(anomaly_map, image_file):
+                    image_paths.append(path)
+                    predictions.append(torch.max(pred).item())
+
+
 
                 # 记录图片路径
-                batch_paths = [p for p in self.test_dataset.image_files]
-                image_paths.extend(batch_paths)
+                # batch_paths = [p for p in self.test_dataset.image_files]
+                # image_paths.extend(batch_paths)
                 # anomaly_map = self.transform(anomaly_map)
                 # gt = self.transform(gt)
 
@@ -64,14 +70,20 @@ class DDAD:
 
                 # gt_list.append(gt)
                 # reconstructed_list.append(x0)
-                for pred, label in zip(anomaly_map, labels):
-                    labels_list.append(0 if label == 'good' else 1)
-                    predictions.append(torch.max(pred).item())
+
+                # for pred, label in zip(anomaly_map, labels):
+                #     labels_list.append(0 if label == 'good' else 1)
+                #     predictions.append(torch.max(pred).item())
 
         
-        metric = Metric(labels_list, predictions, None, None, self.config)
-        binary_predictions = metric.get_predictions()
+        # metric = Metric(labels_list, predictions, None, None, self.config)
+        # binary_predictions = metric.get_predictions()
         
+         # 自动阈值或固定阈值
+        threshold = np.percentile(predictions, 95)  # 可选：用95分位作为异常阈值
+        binary_predictions = [1 if p > threshold else 0 for p in predictions]
+
+
         # 保存结果到CSV
         results_df = pd.DataFrame({
             'image_path': image_paths,
